@@ -1152,7 +1152,17 @@ class SessionStore:
             for entry in self._entries.values():
                 if entry.resume_pending:
                     continue
-                if not entry.suspended and entry.updated_at >= cutoff:
+                if entry.suspended or entry.updated_at is None:
+                    continue
+                # Normalize tz to match _now()'s awareness (custom fix: avoids
+                # TypeError comparing naive vs aware datetimes, restoring the
+                # restart loop-recovery safety net).
+                entry_ts = entry.updated_at
+                if entry_ts.tzinfo is None and cutoff.tzinfo is not None:
+                    entry_ts = entry_ts.replace(tzinfo=cutoff.tzinfo)
+                elif entry_ts.tzinfo is not None and cutoff.tzinfo is None:
+                    entry_ts = entry_ts.replace(tzinfo=None)
+                if entry_ts >= cutoff:
                     entry.resume_pending = True
                     entry.resume_reason = "restart_interrupted"
                     entry.last_resume_marked_at = _now()
