@@ -190,7 +190,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                args_hint="[auto|codex_app_server]",
                busy_policy="reject", busy_handler="codex-runtime"),
 
-    CommandDef("persona", "Reload agent identity from SOUL.md across all active sessions", "Configuration",
+    CommandDef("persona", "Reload SOUL.md (name, personality, tone) across all active sessions", "Configuration",
                subcommands=("reload",), args_hint="[reload]"),
     CommandDef("personality", "Set a predefined personality", "Configuration",
                args_hint="[name]"),
