@@ -1921,6 +1921,33 @@ def _load_gateway_runtime_config() -> dict:
 
     expanded = _expand_env_vars(cfg)
     return expanded if isinstance(expanded, dict) else {}
+def _load_monitor_chat_target(adapters: dict) -> tuple:
+    """Return (adapter, chat_id) for the configured monitor chat, or (None, None)."""
+    try:
+        cfg = _load_gateway_config()
+        raw = cfg.get("agent", {}).get("monitor_chat", "")
+        if not raw or not isinstance(raw, str):
+            return None, None
+        parts = raw.split(":", 1)
+        if len(parts) != 2:
+            return None, None
+        from gateway.config import Platform
+        platform = Platform(parts[0])
+        adapter = adapters.get(platform)
+        if not adapter:
+            return None, None
+        return adapter, parts[1]
+    except Exception:
+        return None, None
+
+
+def _source_label(source) -> str:
+    """Short label for a session source (for monitor chat prefixes)."""
+    chat_id = source.chat_id or ""
+    # Groups often have @g.us suffix, DMs have @s.whatsapp.net or @lid
+    if "@g.us" in chat_id:
+        return f"group:{chat_id[:8]}"
+    return "DM"
 
 
 def _resolve_gateway_model(config: dict | None = None) -> str:
@@ -7619,6 +7646,12 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if canonical == "personality":
             return await self._handle_personality_command(event)
 
+        if canonical == "persona":
+            return await self._handle_persona_command(event)
+
+        if canonical == "monitor":
+            return await self._handle_monitor_command(event)
+
         if canonical == "kanban":
             return await self._handle_kanban_command(event)
 
@@ -11092,6 +11125,100 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if not chat_id:
             return "Could not determine chat ID."
         # No-op if never enabled.
+    async def _handle_monitor_command(self, event: MessageEvent) -> str:
+        """Handle /monitor [set|clear|status] — configure the monitor chat."""
+        args = event.get_command_args().strip().lower()
+        source = event.source
+
+        config_path = _hermes_home / "config.yaml"
+
+        def _load_config_yaml() -> dict:
+            try:
+                if config_path.exists():
+                    import yaml
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        return yaml.safe_load(f) or {}
+            except Exception:
+                pass
+            return {}
+
+        def _save_config_yaml(cfg: dict) -> None:
+            import yaml
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.safe_dump(cfg, f, default_flow_style=False, allow_unicode=True)
+
+        if args in ("set", ""):
+            # Default no-arg → status
+            if args == "":
+                cfg = _load_config_yaml()
+                current = cfg.get("agent", {}).get("monitor_chat", "")
+                if current:
+                    return f"Monitor chat is currently set to: {current}"
+                return "Monitor chat is not configured. Use `/monitor set` from the chat you want as control room."
+
+            # /monitor set — use the current chat
+            platform_str = source.platform.value if source.platform else "unknown"
+            chat_id = source.chat_id or ""
+            monitor_value = f"{platform_str}:{chat_id}"
+
+            cfg = _load_config_yaml()
+            if "agent" not in cfg:
+                cfg["agent"] = {}
+            cfg["agent"]["monitor_chat"] = monitor_value
+            try:
+                _save_config_yaml(cfg)
+            except Exception as e:
+                return f"Failed to save monitor chat config: {e}"
+
+            return (
+                f"Monitor chat set to this chat ({monitor_value}). "
+                f"Tool progress, status messages, and approval requests from all other sessions "
+                f"will now be routed here."
+            )
+
+        elif args == "clear":
+            cfg = _load_config_yaml()
+            if "agent" in cfg:
+                cfg["agent"].pop("monitor_chat", None)
+            try:
+                _save_config_yaml(cfg)
+            except Exception as e:
+                return f"Failed to clear monitor chat config: {e}"
+            return "Monitor chat cleared. Tool progress will route to originating chats."
+
+        elif args == "status":
+            cfg = _load_config_yaml()
+            current = cfg.get("agent", {}).get("monitor_chat", "")
+            if current:
+                return f"Monitor chat is currently set to: {current}"
+            return "Monitor chat is not configured. Use `/monitor set` from the chat you want as control room."
+
+        else:
+            return (
+                f"Unknown subcommand '{args}'. Usage: `/monitor [set|clear|status]`\n"
+                f"  set    — make this chat the monitor/control-room chat\n"
+                f"  clear  — disable monitor chat routing\n"
+                f"  status — show current monitor chat config"
+            )
+
+    async def _handle_compress_command(self, event: MessageEvent) -> str:
+        """Handle /compress command -- manually compress conversation context.
+
+        Accepts an optional focus topic: ``/compress <focus>`` guides the
+        summariser to preserve information related to *focus* while being
+        more aggressive about discarding everything else.
+        """
+        source = event.source
+        session_entry = self.session_store.get_or_create_session(source)
+        history = self.session_store.load_transcript(session_entry.session_id)
+
+        if not history or len(history) < 4:
+            return "Not enough conversation to compress (need at least 4 messages)."
+
+        # Extract optional focus topic from command args
+        focus_topic = (event.get_command_args() or "").strip() or None
+
         try:
             currently_enabled = self._session_db.is_telegram_topic_mode_enabled(
                 chat_id=chat_id,
@@ -14333,6 +14460,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     else:
                         msg = raw
                         progress_lines.append(msg)
+                        msg = _prefix_line(msg)
 
                     if await _roll_progress_overflow_if_needed():
                         _last_edit_ts = time.monotonic()
@@ -14533,6 +14661,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             }
         else:
             _status_thread_metadata = self._thread_metadata_for_source(source, event_message_id) if _progress_thread_id else None
+
+        # Monitor chat: redirect status/progress/approvals to the configured home chat
+        _monitor_adapter, _monitor_chat_id = _load_monitor_chat_target(self.adapters)
+        _is_monitor_source = _monitor_chat_id and source.chat_id == _monitor_chat_id
+        _monitor_active = bool(_monitor_adapter and _monitor_chat_id and not _is_monitor_source)
+        _src_label = _source_label(source)
+
+        if _monitor_active:
+            _status_adapter = _monitor_adapter
+            _status_chat_id = _monitor_chat_id
 
         def _status_callback_sync(event_type: str, message: str) -> None:
             if not _status_adapter or not _run_still_current():
@@ -15141,12 +15279,22 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # Slack threads and reserved by Matrix clients.
                 _p = getattr(_status_adapter, "typed_command_prefix", "/")
                 cmd_preview = cmd[:200] + "..." if len(cmd) > 200 else cmd
+                if _monitor_active:
+                    _approve_instructions = (
+                        f"Reply `/approve {_approval_session_key}` to execute or "
+                        f"`/deny {_approval_session_key}` to cancel."
+                    )
+                else:
+                    _approve_instructions = (
+                        f"Reply `/approve` to execute, `/approve session` to approve this pattern "
+                        f"for the session, `/approve always` to approve permanently, or `/deny` to cancel."
+                    )
+                _monitor_prefix = f"[{_src_label}] " if _monitor_active else ""
                 msg = (
-                    f"⚠️ **Dangerous command requires approval:**\n"
+                    f"{_monitor_prefix}⚠️ **Dangerous command requires approval:**\n"
                     f"```\n{cmd_preview}\n```\n"
                     f"Reason: {desc}\n\n"
-                    f"Reply `{_p}approve` to execute, `{_p}approve session` to approve this pattern "
-                    f"for the session, `{_p}approve always` to approve permanently, or `{_p}deny` to cancel."
+                    f"{_approve_instructions}"
                 )
                 try:
                     _approval_send_fut = safe_schedule_threadsafe(

@@ -133,6 +133,8 @@ COMMAND_REGISTRY: list[CommandDef] = [
 
     CommandDef("persona", "Reload SOUL.md (name, personality, tone) across all active sessions", "Configuration",
                subcommands=("reload",), args_hint="[reload]"),
+    CommandDef("monitor", "Set or clear the monitor chat (routes all tool progress here)", "Configuration",
+               subcommands=("set", "clear", "status"), args_hint="[set|clear|status]"),
     CommandDef("personality", "Set a predefined personality", "Configuration",
                args_hint="[name]"),
     CommandDef("statusbar", "Toggle the context/model status bar", "Configuration",
