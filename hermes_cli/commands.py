@@ -131,7 +131,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
     CommandDef("gquota", "Show Google Gemini Code Assist quota usage", "Info",
                cli_only=True),
 
-    CommandDef("persona", "Reload agent identity from SOUL.md across all active sessions", "Configuration",
+    CommandDef("persona", "Reload SOUL.md (name, personality, tone) across all active sessions", "Configuration",
                subcommands=("reload",), args_hint="[reload]"),
     CommandDef("personality", "Set a predefined personality", "Configuration",
                args_hint="[name]"),

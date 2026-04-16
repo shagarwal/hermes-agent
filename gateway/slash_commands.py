@@ -1541,6 +1541,55 @@ class GatewaySlashCommandsMixin:
         prefix = "✓" if result.success else "✗"
         return f"{prefix} {result.message}"
 
+    async def _handle_persona_command(self, event: MessageEvent) -> str:
+        """Handle /persona [reload] — reload SOUL.md (name, personality, tone) across all cached sessions."""
+        from gateway.run import _hermes_home
+        # 1. Invalidate all cached agents
+        invalidated = 0
+        _cache_lock = getattr(self, "_agent_cache_lock", None)
+        if _cache_lock is not None:
+            with _cache_lock:
+                for session_key, cached in self._agent_cache.items():
+                    agent = cached[0] if isinstance(cached, tuple) else cached
+                    if agent is not None and hasattr(agent, "_invalidate_system_prompt"):
+                        agent._invalidate_system_prompt()
+                        invalidated += 1
+
+        # 2. Notify all active sessions (except this one — the return value notifies the current chat)
+        source = event.source
+        current_key = self._session_key_for_source(source)
+        notified = 0
+        try:
+            for session_key, entry in list(self.session_store._entries.items()):
+                if session_key == current_key:
+                    continue
+                try:
+                    for platform, adapter in self.adapters.items():
+                        platform_prefix = platform.value + ":"
+                        if session_key.startswith(platform_prefix):
+                            chat_id = session_key[len(platform_prefix):]
+                            # strip thread suffix if present (format: "platform:chat_id:thread_id")
+                            chat_id = chat_id.split(":")[0]
+                            try:
+                                await adapter.send(chat_id, "Persona reloaded — SOUL.md changes (name, personality, tone) are now active in this chat.")
+                                notified += 1
+                            except Exception as e:
+                                logger.debug("Failed to notify session %s: %s", session_key, e)
+                            break
+                except Exception as e:
+                    logger.debug("Error notifying session %s: %s", session_key, e)
+        except Exception as e:
+            logger.warning("Error notifying sessions during persona reload: %s", e)
+
+        soul_path = _hermes_home / "SOUL.md"
+        soul_status = "SOUL.md found" if soul_path.exists() else "⚠️ SOUL.md not found — using default identity"
+        return (
+            f"SOUL.md reloaded. {soul_status}. "
+            f"Invalidated {invalidated} cached session(s), notified {notified} other chat(s). "
+            f"Next message in each chat will use the updated name, personality, and tone."
+        )
+
+
     async def _handle_personality_command(self, event: MessageEvent) -> str:
         """Handle /personality command - list or set a personality."""
         from gateway.run import _hermes_home, _load_gateway_config
