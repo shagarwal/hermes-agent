@@ -166,16 +166,16 @@ MEMORY_GUIDANCE = (
 
 SESSION_SEARCH_GUIDANCE = (
     "When the user references something from a past conversation or you suspect "
-    "relevant cross-session context exists, use session_search to recall it before "
+    "relevant cross-session context exists, check before "
     "asking them to repeat themselves."
 )
 
 SKILLS_GUIDANCE = (
     "After completing a complex task (5+ tool calls), fixing a tricky error, "
     "or discovering a non-trivial workflow, save the approach as a "
-    "skill with skill_manage so you can reuse it next time.\n"
+    "skill so you can reuse it next time.\n"
     "When using a skill and finding it outdated, incomplete, or wrong, "
-    "patch it immediately with skill_manage(action='patch') — don't wait to be asked. "
+    "patch it immediately — don't wait to be asked. "
     "Skills that aren't maintained become liabilities."
 )
 
@@ -526,7 +526,7 @@ PLATFORM_HINTS = {
         "You are on a text messaging communication platform, WhatsApp. "
         "Please do not use markdown as it does not render. "
         "You can send media files natively: to deliver a file to the user, "
-        "include MEDIA:/absolute/path/to/file in your response. The file "
+        "The file "
         "will be sent as a native WhatsApp attachment — images (.jpg, .png, "
         ".webp) appear as photos, videos (.mp4, .mov) play inline, and other "
         "files arrive as downloadable documents. You can also include image "
@@ -568,21 +568,21 @@ PLATFORM_HINTS = {
         "rendering is unavailable, but advanced constructs like math and "
         "collapsible details may render as plain source text in that case. "
         "You can send media files natively: to deliver a file to the user, "
-        "include MEDIA:/absolute/path/to/file in your response. Images "
+        "Images "
         "(.png, .jpg, .webp) appear as photos, audio (.ogg) sends as voice "
         "bubbles, and videos (.mp4) play inline. You can also include image "
         "URLs in markdown format ![alt](url) and they will be sent as native photos."
     ),
     "discord": (
         "You are in a Discord server or group chat communicating with your user. "
-        "You can send media files natively: include MEDIA:/absolute/path/to/file "
+        "You can send media files natively: "
         "in your response. Images (.png, .jpg, .webp) are sent as photo "
         "attachments, audio as file attachments. You can also include image URLs "
         "in markdown format ![alt](url) and they will be sent as attachments."
     ),
     "slack": (
         "You are in a Slack workspace communicating with your user. "
-        "You can send media files natively: include MEDIA:/absolute/path/to/file "
+        "You can send media files natively: "
         "in your response. Images (.png, .jpg, .webp) are uploaded as photo "
         "attachments, audio as file attachments. You can also include image URLs "
         "in markdown format ![alt](url) and they will be uploaded as attachments."
@@ -591,7 +591,7 @@ PLATFORM_HINTS = {
         "You are on a text messaging communication platform, Signal. "
         "Please do not use markdown as it does not render. "
         "You can send media files natively: to deliver a file to the user, "
-        "include MEDIA:/absolute/path/to/file in your response. Images "
+        "Images "
         "(.png, .jpg, .webp) appear as photos, audio as attachments, and other "
         "files arrive as downloadable documents. You can also include image "
         "URLs in markdown format ![alt](url) and they will be sent as photos."
@@ -600,7 +600,7 @@ PLATFORM_HINTS = {
         "You are communicating via email. Write clear, well-structured responses "
         "suitable for email. Use plain text formatting (no markdown). "
         "Keep responses concise but complete. You can send file attachments — "
-        "include MEDIA:/absolute/path/to/file in your response. The subject line "
+        "The subject line "
         "is preserved for threading. Do not include greetings or sign-offs unless "
         "contextually appropriate."
     ),
@@ -630,7 +630,7 @@ PLATFORM_HINTS = {
         "You are chatting via iMessage (BlueBubbles). iMessage does not render "
         "markdown formatting — use plain text. Keep responses concise as they "
         "appear as text messages. You can send media files natively: include "
-        "MEDIA:/absolute/path/to/file in your response. Images (.jpg, .png, "
+        "Images (.jpg, .png, "
         ".heic) appear as photos and other files arrive as attachments."
     ),
     "mattermost": (
@@ -662,7 +662,7 @@ PLATFORM_HINTS = {
     "weixin": (
         "You are on Weixin/WeChat. Markdown formatting is supported, so you may use it when "
         "it improves readability, but keep the message compact and chat-friendly. You can send media files natively: "
-        "include MEDIA:/absolute/path/to/file in your response. Images are sent as native "
+        "Images are sent as native "
         "photos, videos play inline when supported, and other files arrive as downloadable "
         "documents. You can also include image URLs in markdown format ![alt](url) and they "
         "will be downloaded and sent as native media when possible."
@@ -670,18 +670,18 @@ PLATFORM_HINTS = {
     "wecom": (
         "You are on WeCom (企业微信 / Enterprise WeChat). Markdown formatting is supported. "
         "You CAN send media files natively — to deliver a file to the user, include "
-        "MEDIA:/absolute/path/to/file in your response. The file will be sent as a native "
+        "the media file path in your response. The file will be sent as a native "
         "WeCom attachment: images (.jpg, .png, .webp) are sent as photos (up to 10 MB), "
         "other files (.pdf, .docx, .xlsx, .md, .txt, etc.) arrive as downloadable documents "
         "(up to 20 MB), and videos (.mp4) play inline. Voice messages are supported but "
         "must be in AMR format — other audio formats are automatically sent as file attachments. "
         "You can also include image URLs in markdown format ![alt](url) and they will be "
         "downloaded and sent as native photos. Do NOT tell the user you lack file-sending "
-        "capability — use MEDIA: syntax whenever a file delivery is appropriate."
+        "capability — use the media syntax whenever a file delivery is appropriate."
     ),
     "qqbot": (
         "You are on QQ, a popular Chinese messaging platform. QQ supports markdown formatting "
-        "and emoji. You can send media files natively: include MEDIA:/absolute/path/to/file in "
+        "and emoji. You can send media files natively: include the media file path in "
         "your response. Images are sent as native photos, and other files arrive as downloadable "
         "documents."
     ),

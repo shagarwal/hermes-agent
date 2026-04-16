@@ -1141,6 +1141,10 @@ class WhatsAppAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             # the message text so the agent can read it inline.
             # Cap at 100KB to match Telegram/Discord/Slack behaviour.
             body = data.get("body", "")
+            # Inject quoted message text for reply context
+            quoted_text = data.get("quotedText", "")
+            if quoted_text:
+                body = f"[Replying to: {quoted_text}]\n{body}"
             if data.get("isGroup"):
                 body = self._clean_bot_mention_text(body, data)
 
