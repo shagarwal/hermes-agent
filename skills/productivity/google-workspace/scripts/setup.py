@@ -53,6 +53,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/contacts.readonly",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/script.projects.readonly",
 ]
 
 # Exact pins: keep in sync with pyproject.toml [project.optional-dependencies].google
