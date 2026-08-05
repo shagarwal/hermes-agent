@@ -5056,6 +5056,49 @@ class TurnRunner:
             # the redacted value.
             cmd = _redact_approval_command(cmd)
 
+            # ── (custom) Home-channel approval mirror ──────────────────────
+            # Mirror approval prompts to the operator home channel
+            # (WHATSAPP_HOME_CHANNEL, same env var upstream uses for cron
+            # delivery) so approvals triggered in other chats (groups, other
+            # DMs) are visible and actionable from the home DM via
+            # `/approve <session_key>` (session-key targeting is added by
+            # patch 003). Best-effort fire-and-forget: never blocks or fails
+            # the real in-chat approval flow below.
+            try:
+                # Resolve through the profile secret scope (same pattern as the
+                # WhatsApp adapter's _wenv): get_secret honors per-profile .env
+                # under multiplexing; os.getenv covers the default profile.
+                try:
+                    from agent.secret_scope import UnscopedSecretError, get_secret
+                    try:
+                        _home_chat_raw = get_secret("WHATSAPP_HOME_CHANNEL")
+                    except UnscopedSecretError:
+                        _home_chat_raw = os.getenv("WHATSAPP_HOME_CHANNEL")
+                except Exception:
+                    _home_chat_raw = os.getenv("WHATSAPP_HOME_CHANNEL")
+                _home_chat = (_home_chat_raw or "").strip()
+                if (
+                    _home_chat
+                    and _home_chat != str(ctx._status_chat_id)
+                    and "whatsapp" in type(ctx._status_adapter).__module__.lower()
+                ):
+                    _mirror_msg = (
+                        "\U0001f514 Approval needed in another chat\n"
+                        f"Session: {ctx.session_key}\n"
+                        f"Command: {cmd}\n"
+                        f"({desc})\n\n"
+                        f"/approve {ctx.session_key} \u2014 allow once\n"
+                        f"/deny {ctx.session_key} \u2014 deny"
+                    )
+                    safe_schedule_threadsafe(
+                        ctx._status_adapter.send(_home_chat, _mirror_msg),
+                        ctx._loop_for_step,
+                        logger=logger,
+                        log_message="Approval home-mirror send error",
+                    )
+            except Exception as _mirror_exc:
+                logger.warning("Approval home-mirror failed: %s", _mirror_exc)
+
             # Prefer button-based approval when the adapter supports it.
             # Check the *class* for the method, not the instance — avoids
             # false positives from MagicMock auto-attribute creation in tests.
